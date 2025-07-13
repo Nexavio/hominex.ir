@@ -3,47 +3,53 @@
 namespace App\Http\Controllers\Api\Auth;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Http\Requests\Auth\OtpRequest;
+use App\Services\OtpService;
+use App\Traits\ApiResponse;
+use Illuminate\Http\JsonResponse;
 
 class OtpController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
-    {
-        //
-    }
+    use ApiResponse;
+
+    public function __construct(
+        private OtpService $otpService
+    ) {}
 
     /**
-     * Store a newly created resource in storage.
+     * ارسال کد OTP جدید
      */
-    public function store(Request $request)
+    public function send(OtpRequest $request): JsonResponse
     {
-        //
-    }
+        $purpose = $request->input('purpose', 'login');
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
+        if (!in_array($purpose, ['login', 'register', 'verify'])) {
+            return $this->errorResponse(
+                message: 'نوع کد تأیید نامعتبر است.',
+                statusCode: 400
+            );
+        }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
+        $result = $this->otpService->generateAndSend($request->phone, $purpose);
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        if ($result['success']) {
+            return $this->successResponse(
+                data: $result['data'],
+                message: $result['message']
+            );
+        }
+
+        // اگر به دلیل rate limit خطا بود
+        if (isset($result['data']['retry_after'])) {
+            return $this->rateLimitResponse(
+                message: $result['message'],
+                retryAfter: $result['data']['retry_after']
+            );
+        }
+
+        return $this->errorResponse(
+            message: $result['message'],
+            statusCode: 400
+        );
     }
 }
