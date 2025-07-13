@@ -15,7 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\LogApiRequests::class,
         ]);
 
-        // Route middleware
+        // Route middleware aliases
         $middleware->alias([
             'log.api.requests' => \App\Http\Middleware\LogApiRequests::class,
             'check.otp.limit' => \App\Http\Middleware\CheckOtpLimit::class,
@@ -23,8 +23,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => \App\Http\Middleware\CheckRole::class,
         ]);
 
-        // Throttle configuration
-        $middleware->throttleApi('otp', 3, 1); // 3 requests per hour for OTP
+        // // Rate limiting configuration
+        // $middleware->throttleApi('otp:3,60'); // 3 requests per minute
     })
     ->withExceptions(function (Exceptions $exceptions) {
         // Custom exception handling can be added here
