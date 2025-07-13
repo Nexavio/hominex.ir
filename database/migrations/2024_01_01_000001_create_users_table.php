@@ -16,6 +16,7 @@ return new class extends Migration
             $table->enum('user_type', ['regular', 'consultant', 'admin'])->default('regular');
             $table->boolean('is_active')->default(true);
             $table->timestamp('phone_verified_at')->nullable();
+            $table->string('password');
             $table->timestamps();
         });
     }
