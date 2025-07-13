@@ -2,48 +2,73 @@
 
 namespace App\Http\Controllers\Api\Auth;
 
+use App\Actions\User\CreateUserAction;
+use App\DTOs\User\UserData;
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Http\Requests\Auth\RegisterRequest;
+use App\Http\Requests\Auth\VerifyOtpRequest;
+use App\Traits\ApiResponse;
+use Illuminate\Http\JsonResponse;
 
 class RegisterController extends Controller
 {
+    use ApiResponse;
+
+    public function __construct(
+        private CreateUserAction $createUserAction
+    ) {}
+
     /**
-     * Display a listing of the resource.
+     * ثبت نام کاربر جدید
      */
-    public function index()
+    public function register(RegisterRequest $request): JsonResponse
     {
-        //
+        $userData = UserData::fromArray($request->validated());
+
+        $result = $this->createUserAction->execute($userData);
+
+        if ($result['success']) {
+            return $this->successResponse(
+                data: $result['data'],
+                message: $result['message'],
+                statusCode: 201
+            );
+        }
+
+        return $this->errorResponse(
+            message: $result['message'],
+            statusCode: 400
+        );
     }
 
     /**
-     * Store a newly created resource in storage.
+     * تأیید کد OTP برای ثبت نام
      */
-    public function store(Request $request)
+    public function verifyOtp(VerifyOtpRequest $request): JsonResponse
     {
-        //
-    }
+        $result = $this->createUserAction->verifyPhone(
+            $request->phone,
+            $request->code
+        );
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
+        if ($result['success']) {
+            return $this->successResponse(
+                data: $result['data'],
+                message: $result['message']
+            );
+        }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
+        if (isset($result['data']['remaining_attempts'])) {
+            return $this->errorResponse(
+                message: $result['message'],
+                errors: $result['data'],
+                statusCode: 400
+            );
+        }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        return $this->errorResponse(
+            message: $result['message'],
+            statusCode: 400
+        );
     }
 }

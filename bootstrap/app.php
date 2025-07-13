@@ -9,9 +9,23 @@ return Application::configure(basePath: dirname(__DIR__))
         api: __DIR__.'/../routes/api.php',
         health: '/up',
     )
-    ->withMiddleware(function (Middleware $middleware): void {
-        // از middleware های web مثل session یا csrf خبری نیست
+    ->withMiddleware(function (Middleware $middleware) {
+        // Global middleware
+        $middleware->api(prepend: [
+            \App\Http\Middleware\LogApiRequests::class,
+        ]);
+
+        // Route middleware
+        $middleware->alias([
+            'log.api.requests' => \App\Http\Middleware\LogApiRequests::class,
+            'check.otp.limit' => \App\Http\Middleware\CheckOtpLimit::class,
+            'check.property.owner' => \App\Http\Middleware\CheckPropertyOwner::class,
+            'role' => \App\Http\Middleware\CheckRole::class,
+        ]);
+
+        // Throttle configuration
+        $middleware->throttleApi('otp', 3, 1); // 3 requests per hour for OTP
     })
-    ->withExceptions(function (Exceptions $exceptions): void {
-        // می‌تونی هندلر سفارشی بزاری اینجا در آینده
+    ->withExceptions(function (Exceptions $exceptions) {
+        // Custom exception handling can be added here
     })->create();
