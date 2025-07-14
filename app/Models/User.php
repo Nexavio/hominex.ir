@@ -1,5 +1,5 @@
 <?php
-
+// app/Models/User.php
 namespace App\Models;
 
 use App\Enums\UserRole;
@@ -37,7 +37,7 @@ class User extends Authenticatable implements JWTSubject
         ];
     }
 
-    // JWT Methods
+    // JWT Methods - ساده کن
     public function getJWTIdentifier()
     {
         return $this->getKey();
@@ -45,11 +45,7 @@ class User extends Authenticatable implements JWTSubject
 
     public function getJWTCustomClaims()
     {
-        return [
-            'user_type' => $this->user_type->value,
-            'phone' => $this->phone,
-            'phone_verified' => !is_null($this->phone_verified_at)
-        ];
+        return [];
     }
 
     // Relationships

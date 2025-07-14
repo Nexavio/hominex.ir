@@ -1,5 +1,5 @@
 <?php
-
+// app/Http/Controllers/Api/Auth/LoginController.php
 namespace App\Http\Controllers\Api\Auth;
 
 use App\Http\Controllers\Controller;
@@ -10,8 +10,9 @@ use App\Services\OtpService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
-use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Log;
+use Tymon\JWTAuth\Facades\JWTAuth;
+use Tymon\JWTAuth\Exceptions\JWTException;
 
 class LoginController extends Controller
 {
@@ -22,89 +23,114 @@ class LoginController extends Controller
         private OtpService $otpService
     ) {}
 
-    /**
-     * ورود کاربر با پسورد یا درخواست OTP
-     */
     public function login(LoginRequest $request): JsonResponse
     {
-        $user = $this->userRepository->findByPhone($request->phone);
+        try {
+            Log::info('Login attempt', ['phone' => $request->phone, 'type' => $request->login_type]);
 
-        if (!$user) {
+            $user = $this->userRepository->findByPhone($request->phone);
+
+            if (!$user) {
+                return $this->errorResponse(
+                    message: 'کاربری با این شماره تماس یافت نشد.',
+                    statusCode: 404
+                );
+            }
+
+            if (!$user->is_active) {
+                return $this->errorResponse(
+                    message: 'حساب کاربری شما غیرفعال است.',
+                    statusCode: 403
+                );
+            }
+
+            if (!$user->phone_verified_at) {
+                return $this->errorResponse(
+                    message: 'شماره تماس شما هنوز تأیید نشده است.',
+                    statusCode: 403
+                );
+            }
+
+            // ورود با پسورد
+            if ($request->login_type === 'password') {
+                if (!$request->password) {
+                    return $this->errorResponse(
+                        message: 'رمز عبور الزامی است.',
+                        statusCode: 400
+                    );
+                }
+                return $this->loginWithPassword($user, $request->password);
+            }
+
+            // ورود با OTP
+            if ($request->login_type === 'otp') {
+                return $this->requestOtpForLogin($user);
+            }
+
             return $this->errorResponse(
-                message: 'کاربری با این شماره تماس یافت نشد.',
-                statusCode: 404
-            );
-        }
-
-        if (!$user->is_active) {
-            return $this->errorResponse(
-                message: 'حساب کاربری شما غیرفعال است.',
-                statusCode: 403
-            );
-        }
-
-        if (!$user->phone_verified_at) {
-            return $this->errorResponse(
-                message: 'شماره تماس شما هنوز تأیید نشده است.',
-                statusCode: 403
-            );
-        }
-
-        // ورود با پسورد
-        if ($request->login_type === 'password') {
-            return $this->loginWithPassword($user, $request->password);
-        }
-
-        // ورود با OTP
-        if ($request->login_type === 'otp') {
-            return $this->requestOtpForLogin($user);
-        }
-
-        return $this->errorResponse(
-            message: 'نوع ورود نامعتبر است.',
-            statusCode: 400
-        );
-    }
-
-    /**
-     * تأیید کد OTP برای ورود
-     */
-    public function verifyLoginOtp(VerifyOtpRequest $request): JsonResponse
-    {
-        $user = $this->userRepository->findByPhone($request->phone);
-
-        if (!$user) {
-            return $this->errorResponse(
-                message: 'کاربری با این شماره تماس یافت نشد.',
-                statusCode: 404
-            );
-        }
-
-        $result = $this->otpService->verify($request->phone, $request->code, 'login');
-
-        if (!$result['success']) {
-            return $this->errorResponse(
-                message: $result['message'],
-                errors: $result['data'],
+                message: 'نوع ورود نامعتبر است.',
                 statusCode: 400
             );
-        }
+        } catch (\Exception $e) {
+            Log::error('Login failed', [
+                'phone' => $request->phone ?? 'unknown',
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
 
-        return $this->generateTokenResponse($user);
+            return $this->serverErrorResponse(
+                'خطا در ورود. لطفا دوباره تلاش کنید.'
+            );
+        }
     }
 
-    /**
-     * خروج کاربر
-     */
+    public function verifyLoginOtp(VerifyOtpRequest $request): JsonResponse
+    {
+        try {
+            $user = $this->userRepository->findByPhone($request->phone);
+
+            if (!$user) {
+                return $this->errorResponse(
+                    message: 'کاربری با این شماره تماس یافت نشد.',
+                    statusCode: 404
+                );
+            }
+
+            $result = $this->otpService->verify($request->phone, $request->code, 'login');
+
+            if (!$result['success']) {
+                return $this->errorResponse(
+                    message: $result['message'],
+                    errors: $result['data'] ?? null,
+                    statusCode: 400
+                );
+            }
+
+            return $this->generateTokenResponse($user);
+        } catch (\Exception $e) {
+            Log::error('OTP verification failed', [
+                'phone' => $request->phone,
+                'error' => $e->getMessage()
+            ]);
+
+            return $this->serverErrorResponse(
+                'خطا در تأیید کد. لطفا دوباره تلاش کنید.'
+            );
+        }
+    }
+
     public function logout(): JsonResponse
     {
         try {
-            JWTAuth::invalidate(JWTAuth::getToken());
+            $token = JWTAuth::getToken();
+            if ($token) {
+                JWTAuth::invalidate($token);
+            }
 
             return $this->successResponse(
                 message: 'با موفقیت خارج شدید.'
             );
-        } catch (\Exception $e) {
+        } catch (JWTException $e) {
             Log::error('Logout failed', ['error' => $e->getMessage()]);
 
             return $this->errorResponse(
@@ -114,20 +140,18 @@ class LoginController extends Controller
         }
     }
 
-    /**
-     * تجدید توکن
-     */
     public function refresh(): JsonResponse
     {
         try {
-            $newToken = JWTAuth::refresh(JWTAuth::getToken());
+            $token = JWTAuth::getToken();
+            $newToken = JWTAuth::refresh($token);
 
             return $this->successResponse([
                 'access_token' => $newToken,
                 'token_type' => 'bearer',
                 'expires_in' => config('jwt.ttl') * 60
             ], 'توکن با موفقیت تجدید شد.');
-        } catch (\Exception $e) {
+        } catch (JWTException $e) {
             Log::error('Token refresh failed', ['error' => $e->getMessage()]);
 
             return $this->errorResponse(
@@ -137,30 +161,40 @@ class LoginController extends Controller
         }
     }
 
-    /**
-     * دریافت اطلاعات کاربر
-     */
     public function me(): JsonResponse
     {
-        $user = auth()->user();
+        try {
+            $user = auth('api')->user();
 
-        return $this->successResponse([
-            'id' => $user->id,
-            'phone' => $user->phone,
-            'email' => $user->email,
-            'full_name' => $user->full_name,
-            'user_type' => $user->user_type,
-            'phone_verified_at' => $user->phone_verified_at?->toISOString(),
-            'created_at' => $user->created_at->toISOString()
-        ]);
+            if (!$user) {
+                return $this->errorResponse(
+                    message: 'کاربر احراز هویت نشده.',
+                    statusCode: 401
+                );
+            }
+
+            return $this->successResponse([
+                'id' => $user->id,
+                'phone' => $user->phone,
+                'email' => $user->email,
+                'full_name' => $user->full_name,
+                'user_type' => $user->user_type->value,
+                'phone_verified_at' => $user->phone_verified_at?->toISOString(),
+                'created_at' => $user->created_at->toISOString()
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Get user profile failed', ['error' => $e->getMessage()]);
+
+            return $this->serverErrorResponse(
+                'خطا در دریافت اطلاعات کاربر.'
+            );
+        }
     }
 
-    /**
-     * ورود با پسورد
-     */
     private function loginWithPassword($user, string $password): JsonResponse
     {
         if (!Hash::check($password, $user->password)) {
+            Log::warning('Wrong password attempt', ['user_id' => $user->id]);
             return $this->errorResponse(
                 message: 'رمز عبور اشتباه است.',
                 statusCode: 401
@@ -170,9 +204,6 @@ class LoginController extends Controller
         return $this->generateTokenResponse($user);
     }
 
-    /**
-     * درخواست OTP برای ورود
-     */
     private function requestOtpForLogin($user): JsonResponse
     {
         $result = $this->otpService->generateAndSend($user->phone, 'login');
@@ -186,17 +217,16 @@ class LoginController extends Controller
 
         return $this->errorResponse(
             message: $result['message'],
-            errors: $result['data'],
+            errors: $result['data'] ?? null,
             statusCode: 400
         );
     }
 
-    /**
-     * تولید پاسخ توکن
-     */
     private function generateTokenResponse($user): JsonResponse
     {
         try {
+            Log::info('Generating token for user', ['user_id' => $user->id]);
+
             $token = JWTAuth::fromUser($user);
 
             Log::info('User logged in successfully', [
@@ -213,10 +243,10 @@ class LoginController extends Controller
                     'phone' => $user->phone,
                     'email' => $user->email,
                     'full_name' => $user->full_name,
-                    'user_type' => $user->user_type
+                    'user_type' => $user->user_type->value
                 ]
             ], 'ورود با موفقیت انجام شد.');
-        } catch (\Exception $e) {
+        } catch (JWTException $e) {
             Log::error('Token generation failed', [
                 'user_id' => $user->id,
                 'error' => $e->getMessage()
