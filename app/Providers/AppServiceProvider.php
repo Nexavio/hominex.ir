@@ -20,7 +20,11 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(UserRepositoryInterface::class, UserRepository::class);
 
         // SmsService binding
-        $this->app->bind(SmsService::class, function ($app) {
+        // $this->app->bind(SmsService::class, function ($app) {
+        //     return new SmsService();
+        // });
+
+        $this->app->singleton(SmsService::class, function ($app) {
             return new SmsService();
         });
     }
