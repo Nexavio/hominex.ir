@@ -1,18 +1,15 @@
 <?php
-
+// app/Services/SmsService.php
 namespace App\Services;
 
-use Kavenegar\KavenegarApi;
 use Illuminate\Support\Facades\Log;
 
 class SmsService
 {
-    private KavenegarApi $api;
-    private string $sender;
+    private $sender;
 
     public function __construct()
     {
-        $this->api = new KavenegarApi(config('services.kavenegar.token'));
         $this->sender = config('services.kavenegar.sender', '2000660110');
     }
 
@@ -22,9 +19,22 @@ class SmsService
     public function sendOtpCode(string $phone, string $code): bool
     {
         try {
+            // در محیط development، کد رو در لاگ ثبت می‌کنیم
+            if (config('app.env') === 'local') {
+                Log::info("OTP Code for {$phone}: {$code}");
+                return true;
+            }
+
+            // در production، با Kavenegar API ارسال می‌شود
+            if (!config('services.kavenegar.token')) {
+                Log::warning('Kavenegar token not configured');
+                return false;
+            }
+
+            $api = new \Kavenegar\KavenegarApi(config('services.kavenegar.token'));
             $message = "کد تأیید شما: {$code}\nاین کد تا 10 دقیقه معتبر است.";
 
-            $result = $this->api->Send($this->sender, $phone, $message);
+            $result = $api->Send($this->sender, $phone, $message);
 
             Log::info('OTP sent successfully', [
                 'phone' => $phone,
@@ -48,9 +58,20 @@ class SmsService
     public function sendWelcomeMessage(string $phone, string $name): bool
     {
         try {
+            if (config('app.env') === 'local') {
+                Log::info("Welcome message for {$phone}: سلام {$name} عزیز!");
+                return true;
+            }
+
+            if (!config('services.kavenegar.token')) {
+                Log::warning('Kavenegar token not configured');
+                return false;
+            }
+
+            $api = new \Kavenegar\KavenegarApi(config('services.kavenegar.token'));
             $message = "سلام {$name} عزیز!\nبه پلتفرم املاک ما خوش آمدید. از اعتماد شما متشکریم.";
 
-            $result = $this->api->Send($this->sender, $phone, $message);
+            $result = $api->Send($this->sender, $phone, $message);
 
             Log::info('Welcome message sent', [
                 'phone' => $phone,
