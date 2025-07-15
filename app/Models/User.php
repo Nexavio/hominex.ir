@@ -37,7 +37,7 @@ class User extends Authenticatable implements JWTSubject
         ];
     }
 
-    // JWT Methods - ساده کن
+    // JWT Methods
     public function getJWTIdentifier()
     {
         return $this->getKey();
@@ -79,6 +79,24 @@ class User extends Authenticatable implements JWTSubject
         return $this->hasMany(Message::class, 'receiver_id');
     }
 
+    // رابطه جدید: آگهی‌هایی که این کاربر ثبت کرده
+    public function createdProperties()
+    {
+        return $this->hasMany(Property::class, 'created_by_user_id');
+    }
+
+    // رابطه جدید: اعلانات دریافتی
+    public function notifications()
+    {
+        return $this->hasMany(Notification::class);
+    }
+
+    // رابطه جدید: اعلانات ارسالی (برای ادمین)
+    public function sentNotifications()
+    {
+        return $this->hasMany(Notification::class, 'sender_id');
+    }
+
     // Scopes
     public function scopeActive($query)
     {
@@ -95,6 +113,14 @@ class User extends Authenticatable implements JWTSubject
         return $query->where('user_type', $userType);
     }
 
+    // Scope جدید: کاربرانی که درخواست مشاور دادن
+    public function scopeWithPendingConsultantRequest($query)
+    {
+        return $query->whereHas('consultant', function ($q) {
+            $q->where('is_verified', false);
+        });
+    }
+
     // Accessors & Mutators
     public function getIsPhoneVerifiedAttribute(): bool
     {
@@ -109,5 +135,106 @@ class User extends Authenticatable implements JWTSubject
     public function getIsAdminAttribute(): bool
     {
         return $this->user_type === UserRole::ADMIN;
+    }
+
+    // Accessor جدید: آیا درخواست مشاور در انتظار تایید دارد؟
+    public function getHasPendingConsultantRequestAttribute(): bool
+    {
+        return $this->consultant && !$this->consultant->is_verified && $this->user_type === UserRole::REGULAR;
+    }
+
+    // Accessor جدید: تعداد آگهی‌های ثبت شده
+    public function getCreatedPropertiesCountAttribute(): int
+    {
+        return $this->createdProperties()->count();
+    }
+
+    // Accessor جدید: تعداد آگهی‌های تایید شده
+    public function getApprovedPropertiesCountAttribute(): int
+    {
+        return $this->createdProperties()->where('status', 'approved')->count();
+    }
+
+    // Accessor جدید: تعداد آگهی‌های در انتظار
+    public function getPendingPropertiesCountAttribute(): int
+    {
+        return $this->createdProperties()->where('status', 'pending')->count();
+    }
+
+    // Accessor جدید: تعداد اعلانات خوانده نشده
+    public function getUnreadNotificationsCountAttribute(): int
+    {
+        return $this->notifications()->where('is_read', false)->count();
+    }
+
+    // Methods جدید
+    public function canCreateProperty(): bool
+    {
+        // بررسی فعال بودن حساب
+        if (!$this->is_active) {
+            return false;
+        }
+
+        // بررسی تایید شماره تماس
+        if (!$this->phone_verified_at) {
+            return false;
+        }
+
+        // ادمین و مشاور همیشه می‌تونن آگهی ثبت کنن
+        if (in_array($this->user_type, [UserRole::ADMIN, UserRole::CONSULTANT])) {
+            return true;
+        }
+
+        // کاربر معمولی هم می‌تونه آگهی ثبت کنه
+        return $this->user_type === UserRole::REGULAR;
+    }
+
+    public function canRequestConsultantUpgrade(): bool
+    {
+        // فقط کاربر معمولی می‌تونه درخواست ارتقا بده
+        if ($this->user_type !== UserRole::REGULAR) {
+            return false;
+        }
+
+        // حساب باید فعال باشه
+        if (!$this->is_active || !$this->phone_verified_at) {
+            return false;
+        }
+
+        // نباید قبلاً درخواست داده باشه یا درخواستش رد شده باشه
+        return !$this->consultant;
+    }
+
+    public function upgradeToConsultant(): bool
+    {
+        if ($this->user_type !== UserRole::REGULAR) {
+            return false;
+        }
+
+        if (!$this->consultant || !$this->consultant->is_verified) {
+            return false;
+        }
+
+        return $this->update(['user_type' => UserRole::CONSULTANT]);
+    }
+
+    public function hasUnreadMessages(): bool
+    {
+        return $this->receivedMessages()->where('is_read', false)->exists();
+    }
+
+    public function getUnreadMessagesCount(): int
+    {
+        return $this->receivedMessages()->where('is_read', false)->count();
+    }
+
+    public function markAllNotificationsAsRead(): int
+    {
+        return $this->notifications()
+            ->where('is_read', false)
+            ->update([
+                'is_read' => true,
+                'read_at' => now()
+            ]);
     }
 }

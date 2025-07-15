@@ -11,6 +11,7 @@ class Property extends Model
 {
     protected $fillable = [
         'consultant_id',
+        'created_by_user_id', // فیلد جدید اضافه شد
         'property_type_id',
         'title',
         'description',
@@ -67,6 +68,12 @@ class Property extends Model
         return $this->belongsTo(Consultant::class);
     }
 
+    // رابطه جدید: کاربری که آگهی را ثبت کرده
+    public function createdByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by_user_id');
+    }
+
     public function propertyType(): BelongsTo
     {
         return $this->belongsTo(PropertyType::class);
@@ -92,7 +99,7 @@ class Property extends Model
         return $this->hasMany(ConsultationRequest::class);
     }
 
-    // Scopes
+    // Scopes موجود
     public function scopeApproved($query)
     {
         return $query->where('status', 'approved');
@@ -146,7 +153,25 @@ class Property extends Model
         return $query->where('rooms_count', $rooms);
     }
 
-    // Accessors
+    // Scope جدید: آگهی‌های ثبت شده توسط کاربر خاص
+    public function scopeCreatedByUser($query, int $userId)
+    {
+        return $query->where('created_by_user_id', $userId);
+    }
+
+    // Scope جدید: آگهی‌های کاربران معمولی (consultant_id = 1)
+    public function scopeByRegularUsers($query)
+    {
+        return $query->where('consultant_id', 1);
+    }
+
+    // Scope جدید: آگهی‌های مشاورین واقعی
+    public function scopeByRealConsultants($query)
+    {
+        return $query->where('consultant_id', '>', 1);
+    }
+
+    // Accessors موجود
     public function getStatusLabelAttribute(): string
     {
         return match ($this->status) {
@@ -217,7 +242,23 @@ class Property extends Model
                (is_null($this->featured_until) || $this->featured_until > now());
     }
 
-    // Methods
+    // Accessor جدید: آیا این آگهی توسط کاربر معمولی ثبت شده؟
+    public function getIsCreatedByRegularUserAttribute(): bool
+    {
+        return $this->consultant_id === 1;
+    }
+
+    // Accessor جدید: نام نمایشی کسی که آگهی را ثبت کرده
+    public function getCreatorDisplayNameAttribute(): string
+    {
+        if ($this->is_created_by_regular_user) {
+            return $this->createdByUser?->full_name ?? 'کاربر هومینکس';
+        }
+
+        return $this->consultant?->getFullNameAttribute() ?? 'نامشخص';
+    }
+
+    // Methods موجود
     public function approve(): bool
     {
         return $this->update([
@@ -265,15 +306,65 @@ class Property extends Model
         return $this->increment('views_count');
     }
 
+    // Methods جدید
     public function canBeEditedBy(User $user): bool
     {
-        return $user->user_type === \App\Enums\UserRole::ADMIN ||
-               ($this->consultant && $this->consultant->user_id === $user->id);
+        // ادمین همه آگهی‌ها رو می‌تونه ویرایش کنه
+        if ($user->user_type === \App\Enums\UserRole::ADMIN) {
+            return true;
+        }
+
+        // مشاور فقط آگهی‌های خودش رو می‌تونه ویرایش کنه
+        if ($user->user_type === \App\Enums\UserRole::CONSULTANT) {
+            return $this->consultant && $this->consultant->user_id === $user->id;
+        }
+
+        // کاربر معمولی فقط آگهی‌هایی که خودش ثبت کرده رو می‌تونه ویرایش کنه
+        return $this->created_by_user_id === $user->id;
     }
 
     public function canBeDeletedBy(User $user): bool
     {
-        return $user->user_type === \App\Enums\UserRole::ADMIN ||
-               ($this->consultant && $this->consultant->user_id === $user->id && $this->status === 'draft');
+        // ادمین همه آگهی‌ها رو می‌تونه حذف (آرشیو) کنه
+        if ($user->user_type === \App\Enums\UserRole::ADMIN) {
+            return true;
+        }
+
+        // مشاور آگهی‌های خودش رو می‌تونه حذف کنه (اگر در وضعیت draft باشه)
+        if ($user->user_type === \App\Enums\UserRole::CONSULTANT) {
+            return $this->consultant &&
+                   $this->consultant->user_id === $user->id &&
+                   in_array($this->status, ['draft', 'pending']);
+        }
+
+        // کاربر معمولی آگهی‌های خودش رو می‌تونه حذف کنه
+        return $this->created_by_user_id === $user->id &&
+               in_array($this->status, ['draft', 'pending']);
+    }
+
+    public function canBeViewedBy(User $user = null): bool
+    {
+        // اگر آگهی منتشر شده، همه می‌تونن ببینن
+        if ($this->status === 'approved' && $this->published_at) {
+            return true;
+        }
+
+        // اگر کاربر لاگین نکرده، فقط آگهی‌های منتشر شده
+        if (!$user) {
+            return false;
+        }
+
+        // ادمین همه آگهی‌ها رو می‌تونه ببینه
+        if ($user->user_type === \App\Enums\UserRole::ADMIN) {
+            return true;
+        }
+
+        // مشاور آگهی‌های خودش رو می‌تونه ببینه
+        if ($user->user_type === \App\Enums\UserRole::CONSULTANT) {
+            return $this->consultant && $this->consultant->user_id === $user->id;
+        }
+
+        // کاربر معمولی آگهی‌های خودش رو می‌تونه ببینه
+        return $this->created_by_user_id === $user->id;
     }
 }
