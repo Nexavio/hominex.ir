@@ -6,6 +6,7 @@ use App\Repositories\Eloquent\UserRepository;
 use App\Repositories\Interfaces\UserRepositoryInterface;
 use Illuminate\Support\ServiceProvider;
 use App\Services\SmsService;
+use App\Services\MediaService;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\RateLimiter;
 
@@ -19,13 +20,13 @@ class AppServiceProvider extends ServiceProvider
         // Repository bindings
         $this->app->bind(UserRepositoryInterface::class, UserRepository::class);
 
-        // SmsService binding
-        // $this->app->bind(SmsService::class, function ($app) {
-        //     return new SmsService();
-        // });
-
+        // Service bindings
         $this->app->singleton(SmsService::class, function ($app) {
             return new SmsService();
+        });
+
+        $this->app->singleton(MediaService::class, function ($app) {
+            return new MediaService();
         });
     }
 
