@@ -6,6 +6,8 @@ use App\Models\Property;
 use App\Models\PropertyType;
 use App\Models\Consultant;
 use App\Models\PropertyAmenity;
+use App\Models\User;
+use App\Enums\UserRole;
 use Illuminate\Database\Seeder;
 
 class PropertySeeder extends Seeder
@@ -15,9 +17,17 @@ class PropertySeeder extends Seeder
         $consultants = Consultant::all();
         $propertyTypes = PropertyType::all();
         $amenities = PropertyAmenity::all();
+        $regularUsers = User::where('user_type', UserRole::REGULAR)->get();
 
         if ($consultants->isEmpty() || $propertyTypes->isEmpty()) {
             $this->command->info('ابتدا باید ConsultantSeeder و PropertyTypeSeeder اجرا شوند.');
+            return;
+        }
+
+        // مطمئن شویم که مشاور پیش‌فرض (ID=1) وجود دارد
+        $defaultConsultant = $consultants->where('id', 1)->first();
+        if (!$defaultConsultant) {
+            $this->command->error('مشاور پیش‌فرض (ID=1) وجود ندارد!');
             return;
         }
 
@@ -46,13 +56,26 @@ class PropertySeeder extends Seeder
 
         // ایجاد 100 ملک
         for ($i = 0; $i < 100; $i++) {
-            $consultant = $consultants->random();
             $propertyType = $propertyTypes->random();
             $province = fake()->randomElement($provinces);
             $city = $province === 'تهران' ? fake()->randomElement($tehranDistricts) : $province;
 
             $propertyStatus = fake()->randomElement(['for_sale', 'for_rent']);
             $status = fake()->randomElement(['draft', 'pending', 'approved', 'rejected']);
+
+            // تعیین اینکه این آگهی توسط مشاور یا کاربر معمولی ثبت شده
+            $isCreatedByConsultant = fake()->boolean(70); // 70% توسط مشاوران واقعی
+
+            if ($isCreatedByConsultant) {
+                // آگهی توسط مشاور واقعی ثبت شده
+                $consultant = $consultants->where('id', '>', 1)->random(); // مشاوران واقعی (ID > 1)
+                $consultantId = $consultant->id;
+                $createdByUserId = $consultant->user_id;
+            } else {
+                // آگهی توسط کاربر معمولی ثبت شده (با مشاور پیش‌فرض)
+                $consultantId = 1; // مشاور پیش‌فرض
+                $createdByUserId = $regularUsers->isNotEmpty() ? $regularUsers->random()->id : 1;
+            }
 
             // قیمت‌گذاری بر اساس نوع ملک و وضعیت
             $totalPrice = null;
@@ -67,7 +90,8 @@ class PropertySeeder extends Seeder
             }
 
             $property = Property::create([
-                'consultant_id' => $consultant->id,
+                'consultant_id' => $consultantId,
+                'created_by_user_id' => $createdByUserId, // فیلد جدید
                 'property_type_id' => $propertyType->id,
                 'title' => $propertyType->name . ' ' . fake()->numberBetween(50, 300) . ' متری در ' . $city,
                 'description' => fake()->randomElement($propertyDescriptions) . '. ' . fake()->sentence(10),
@@ -108,6 +132,6 @@ class PropertySeeder extends Seeder
             $property->amenities()->attach($randomAmenities->pluck('id'));
         }
 
-        $this->command->info('100 ملک با موفقیت ایجاد شد.');
+        $this->command->info('100 ملک با created_by_user_id با موفقیت ایجاد شد.');
     }
 }

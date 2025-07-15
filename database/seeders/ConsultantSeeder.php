@@ -11,6 +11,47 @@ class ConsultantSeeder extends Seeder
 {
     public function run(): void
     {
+        // ابتدا مشاور پیش‌فرض سایت (ID=1) را ایجاد می‌کنیم
+        $this->createDefaultConsultant();
+
+        // سپس مشاورین واقعی را ایجاد می‌کنیم
+        $this->createRealConsultants();
+
+        // یک مشاور تست هم می‌سازیم
+        $this->createTestConsultant();
+    }
+
+    /**
+     * ایجاد مشاور پیش‌فرض سایت (ID=1)
+     */
+    private function createDefaultConsultant(): void
+    {
+        $defaultUser = User::factory()->consultant()->create([
+            'phone' => '02188776655',
+            'full_name' => 'تیم مشاوره هومینکس',
+            'email' => 'info@hominex.ir',
+            'phone_verified_at' => now(),
+        ]);
+
+        Consultant::create([
+            'user_id' => $defaultUser->id,
+            'company_name' => 'هومینکس - سامانه جامع املاک',
+            'bio' => 'تیم متخصص مشاوره املاک سایت هومینکس آماده ارائه بهترین خدمات مشاوره‌ای در زمینه خرید، فروش و اجاره انواع املاک می‌باشد.',
+            'contact_phone' => '021-88776655',
+            'contact_whatsapp' => '09120000000',
+            'contact_telegram' => '@hominex_support',
+            'contact_instagram' => 'hominex.ir',
+            'is_verified' => true,
+        ]);
+
+        $this->command->info('✅ مشاور پیش‌فرض سایت (ID=1) ایجاد شد');
+    }
+
+    /**
+     * ایجاد مشاورین واقعی
+     */
+    private function createRealConsultants(): void
+    {
         // ایجاد کاربران مشاور
         $consultantUsers = User::factory(15)->consultant()->create();
 
@@ -53,7 +94,14 @@ class ConsultantSeeder extends Seeder
             ]);
         }
 
-        // یک مشاور تست هم بسازیم
+        $this->command->info('✅ 15 مشاور واقعی ایجاد شد');
+    }
+
+    /**
+     * ایجاد مشاور تست
+     */
+    private function createTestConsultant(): void
+    {
         $testConsultantUser = User::factory()->consultant()->create([
             'phone' => '09333333333',
             'full_name' => 'احمد محمدی',
@@ -71,5 +119,7 @@ class ConsultantSeeder extends Seeder
             'contact_instagram' => 'testconsultant',
             'is_verified' => true,
         ]);
+
+        $this->command->info('✅ مشاور تست ایجاد شد');
     }
 }
