@@ -3,23 +3,19 @@
 use App\Http\Controllers\Api\Auth\LoginController;
 use App\Http\Controllers\Api\Auth\OtpController;
 use App\Http\Controllers\Api\Auth\RegisterController;
+use App\Http\Controllers\Api\User\ConsultantUpgradeController;
+use App\Http\Controllers\Api\Admin\ConsultantController as AdminConsultantController;
 use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
 | API Routes
 |--------------------------------------------------------------------------
-|
-| Here is where you can register API routes for your application. These
-| routes are loaded by the RouteServiceProvider and all of them will
-| be assigned to the "api" middleware group. Make something great!
-|
 */
 
 // Auth Routes
 Route::prefix('auth')->group(function () {
-
-    // Public routes (بدون احراز هویت)
+    // Public routes
     Route::post('register', [RegisterController::class, 'register']);
     Route::post('verify-registration', [RegisterController::class, 'verifyOtp']);
     Route::post('login', [LoginController::class, 'login']);
@@ -30,7 +26,7 @@ Route::prefix('auth')->group(function () {
         Route::post('send-otp', [OtpController::class, 'send']);
     });
 
-    // Protected routes (نیاز به احراز هویت)
+    // Protected routes
     Route::middleware(['auth:api'])->group(function () {
         Route::post('logout', [LoginController::class, 'logout']);
         Route::post('refresh', [LoginController::class, 'refresh']);
@@ -57,6 +53,12 @@ Route::prefix('v1')->middleware(['api', 'log.api.requests'])->group(function () 
         Route::prefix('user')->group(function () {
             Route::get('profile', [App\Http\Controllers\Api\User\ProfileController::class, 'show']);
             Route::put('profile', [App\Http\Controllers\Api\User\ProfileController::class, 'update']);
+
+            // درخواست ارتقا به مشاور - فقط کاربران معمولی
+            Route::prefix('consultant-upgrade')->group(function () {
+                Route::get('status', [ConsultantUpgradeController::class, 'getRequestStatus']);
+                Route::post('submit', [ConsultantUpgradeController::class, 'submitRequest']);
+            });
         });
 
         // Property routes
@@ -93,6 +95,14 @@ Route::prefix('v1')->middleware(['api', 'log.api.requests'])->group(function () 
                 Route::get('/{user}', [App\Http\Controllers\Api\Admin\UserManagementController::class, 'show']);
                 Route::put('/{user}', [App\Http\Controllers\Api\Admin\UserManagementController::class, 'update']);
                 Route::delete('/{user}', [App\Http\Controllers\Api\Admin\UserManagementController::class, 'destroy']);
+            });
+
+            // مدیریت درخواست‌های ارتقا به مشاور
+            Route::prefix('consultant-requests')->group(function () {
+                Route::get('/', [AdminConsultantController::class, 'pendingRequests']);
+                Route::get('/{consultant}', [AdminConsultantController::class, 'show']);
+                Route::post('/{consultant}/approve', [AdminConsultantController::class, 'approve']);
+                Route::post('/{consultant}/reject', [AdminConsultantController::class, 'reject']);
             });
 
             // Property management

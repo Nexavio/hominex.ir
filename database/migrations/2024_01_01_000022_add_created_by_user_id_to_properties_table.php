@@ -14,8 +14,8 @@ return new class extends Migration
         Schema::table('properties', function (Blueprint $table) {
             // اضافه کردن فیلد created_by_user_id بعد از consultant_id
             $table->foreignId('created_by_user_id')
-                  ->nullable()
                   ->after('consultant_id')
+                  ->nullable()
                   ->constrained('users')
                   ->onDelete('set null')
                   ->comment('کاربری که این آگهی را ثبت کرده است');
