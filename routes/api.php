@@ -70,7 +70,7 @@ Route::prefix('v1')->group(function () {
 // =====================================================
 // 🔐 Protected API Routes (Authentication Required)
 // =====================================================
-Route::prefix('v1')->middleware(['auth:api', 'log.api.requests'])->group(function () {
+Route::prefix('v1')->middleware(['auth:api'])->group(function () {
 
     // =====================================================
     // 👤 User Routes
@@ -90,8 +90,10 @@ Route::prefix('v1')->middleware(['auth:api', 'log.api.requests'])->group(functio
         // User favorites
         Route::prefix('favorites')->group(function () {
             Route::get('/', [FavoriteController::class, 'index']);
+            Route::get('stats', [FavoriteController::class, 'stats']);
             Route::post('/{property}', [FavoriteController::class, 'store']);
             Route::delete('/{property}', [FavoriteController::class, 'destroy']);
+            Route::get('/{property}/status', [FavoriteController::class, 'status']);
         });
 
         // Property comparison
