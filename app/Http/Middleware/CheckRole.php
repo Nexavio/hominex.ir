@@ -14,14 +14,29 @@ class CheckRole
 
     public function handle(Request $request, Closure $next, string $role): Response
     {
-        $user = auth()->user();
-
-        if (!$user) {
-            return $this->unauthorizedResponse('برای دسترسی به این بخش باید وارد شوید.');
+        // بررسی اینکه کاربر لاگین کرده باشد
+        if (!auth()->check()) {
+            return $this->unauthorizedResponse('شما باید وارد شوید.');
         }
 
-        $requiredRole = UserRole::from($role);
+        $user = auth()->user();
 
+        // بررسی اینکه کاربر وجود دارد
+        if (!$user) {
+            return $this->unauthorizedResponse('کاربر یافت نشد.');
+        }
+
+        // تبدیل role string به UserRole enum
+        try {
+            $requiredRole = UserRole::from($role);
+        } catch (\ValueError $e) {
+            return $this->errorResponse(
+                message: 'نقش کاربری نامعتبر است.',
+                statusCode: 400
+            );
+        }
+
+        // بررسی نقش کاربر
         if ($user->user_type !== $requiredRole) {
             return $this->errorResponse(
                 message: 'شما مجاز به دسترسی به این بخش نیستید.',
