@@ -101,6 +101,7 @@ Route::prefix('v1')->middleware(['auth:api'])->group(function () {
             Route::get('/', [CompareController::class, 'index']);
             Route::post('/add', [CompareController::class, 'store']);
             Route::delete('/remove', [CompareController::class, 'destroy']);
+            Route::delete('/clear', [CompareController::class, 'clear']);
         });
     });
 
