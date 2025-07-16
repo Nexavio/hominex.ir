@@ -3,47 +3,72 @@
 namespace App\Http\Controllers\Api\User;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Http\Requests\User\UpdateProfileRequest;
+use App\Traits\ApiResponse;
+use Illuminate\Http\JsonResponse;
 
 class ProfileController extends Controller
 {
+    use ApiResponse;
+
     /**
-     * Display a listing of the resource.
+     * نمایش پروفایل کاربر
      */
-    public function index()
+    public function show(): JsonResponse
     {
-        //
+        $user = auth()->user();
+        $user->load(['consultant', 'createdProperties', 'favorites']);
+
+        return $this->successResponse([
+            'id' => $user->id,
+            'phone' => $user->phone,
+            'email' => $user->email,
+            'full_name' => $user->full_name,
+            'user_type' => $user->user_type->value,
+            'is_active' => $user->is_active,
+            'phone_verified_at' => $user->phone_verified_at?->toISOString(),
+            'created_at' => $user->created_at->toISOString(),
+            'consultant' => $user->consultant ? [
+                'id' => $user->consultant->id,
+                'company_name' => $user->consultant->company_name,
+                'bio' => $user->consultant->bio,
+                'contact_phone' => $user->consultant->contact_phone,
+                'is_verified' => $user->consultant->is_verified,
+                'profile_image_url' => $user->consultant->profile_image_url,
+            ] : null,
+            'stats' => [
+                'created_properties_count' => $user->created_properties_count,
+                'approved_properties_count' => $user->approved_properties_count,
+                'pending_properties_count' => $user->pending_properties_count,
+                'favorites_count' => $user->favorites->count(),
+                'unread_notifications_count' => $user->unread_notifications_count,
+            ]
+        ], 'اطلاعات پروفایل با موفقیت دریافت شد.');
     }
 
     /**
-     * Store a newly created resource in storage.
+     * بروزرسانی پروفایل کاربر
      */
-    public function store(Request $request)
+    public function update(UpdateProfileRequest $request): JsonResponse
     {
-        //
-    }
+        $user = auth()->user();
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
+        $updateData = array_filter([
+            'full_name' => $request->full_name,
+            'email' => $request->email,
+        ], fn($value) => $value !== null);
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
+        if (!empty($updateData)) {
+            $user->update($updateData);
+        }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        return $this->successResponse([
+            'id' => $user->id,
+            'phone' => $user->phone,
+            'email' => $user->email,
+            'full_name' => $user->full_name,
+            'user_type' => $user->user_type->value,
+            'updated_at' => $user->updated_at->toISOString(),
+        ], 'پروفایل با موفقیت بروزرسانی شد.');
     }
 }
