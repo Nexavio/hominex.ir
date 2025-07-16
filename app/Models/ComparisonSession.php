@@ -1,4 +1,5 @@
 <?php
+// app/Models/ComparisonSession.php - نسخه بدون timestamps
 
 namespace App\Models;
 
@@ -8,6 +9,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ComparisonSession extends Model
 {
+    // غیرفعال کردن timestamps تا migration اجرا شود
+    public $timestamps = false;
+
     protected $fillable = [
         'user_id',
         'device_fingerprint',
