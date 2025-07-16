@@ -171,10 +171,12 @@ Route::prefix('v1')->middleware(['auth:api'])->group(function () {
         // =====================================================
         Route::prefix('properties')->group(function () {
             Route::get('/', [PropertyManagementController::class, 'index']);
+            Route::get('stats', [PropertyManagementController::class, 'stats']);
             Route::get('{property}', [PropertyManagementController::class, 'show']);
             Route::post('{property}/approve', [PropertyManagementController::class, 'approve']);
             Route::post('{property}/reject', [PropertyManagementController::class, 'reject']);
             Route::post('{property}/feature', [PropertyManagementController::class, 'feature']);
+            Route::delete('{property}/feature', [PropertyManagementController::class, 'unfeature']);
             Route::delete('{property}', [PropertyManagementController::class, 'destroy']);
         });
 
