@@ -17,19 +17,19 @@ class TestSmsCommand extends Command
 
     public function handle()
     {
-        $this->info('🔍 شروع تست SMS...');
+        $this->info('🔍 test SMS connection starting...');
 
         // تست اتصال
-        $this->info('📡 تست اتصال به Kavenegar...');
+        $this->info('📡 kavenegar test connection ...');
         $connectionTest = $this->smsService->testConnection();
 
         if ($connectionTest['success']) {
-            $this->info('✅ اتصال موفق!');
+            $this->info('✅ connection successfully!');
             if (isset($connectionTest['data']['remaining_credit'])) {
-                $this->info("💰 اعتبار باقی‌مانده: {$connectionTest['data']['remaining_credit']}");
+                $this->info("💰 credit : {$connectionTest['data']['remaining_credit']}");
             }
         } else {
-            $this->error('❌ خطا در اتصال: ' . $connectionTest['message']);
+            $this->error('❌ connection failed ' . $connectionTest['message']);
             return 1;
         }
 
@@ -55,10 +55,10 @@ class TestSmsCommand extends Command
         $result = $this->smsService->sendOtpCode($phone, (string)$testCode);
 
         if ($result) {
-            $this->info('✅ SMS با موفقیت ارسال شد!');
-            $this->info("کد ارسال شده: {$testCode}");
+            $this->info('✅ send sms successfully!');
+            $this->info("code : {$testCode}");
         } else {
-            $this->error('❌ خطا در ارسال SMS');
+            $this->error('❌ error when send sms!');
             $this->info('لطفاً لاگ‌های Laravel را بررسی کنید: tail -f storage/logs/laravel.log');
         }
 
