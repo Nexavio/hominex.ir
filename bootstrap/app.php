@@ -26,7 +26,17 @@ return Application::configure(basePath: dirname(__DIR__))
             'check.otp.limit' => \App\Http\Middleware\CheckOtpLimit::class,
             'check.property.owner' => \App\Http\Middleware\CheckPropertyOwner::class,
             'role' => \App\Http\Middleware\CheckRole::class,
+            'api.auth' => \App\Http\Middleware\ApiAuthenticate::class,
         ]);
+
+        // Configure authentication redirects
+        $middleware->redirectGuestsTo(function () {
+            return response()->json([
+                'success' => false,
+                'message' => 'احراز هویت ناموفق - لطفا ابتدا وارد شوید.',
+                'timestamp' => now()->toISOString()
+            ], 401);
+        });
     })
 
     ->withCommands([
@@ -34,9 +44,20 @@ return Application::configure(basePath: dirname(__DIR__))
     ])
 
     ->withExceptions(function (Exceptions $exceptions) {
+        // Handle authentication errors
+        $exceptions->render(function (\Illuminate\Auth\AuthenticationException $e, Request $request) {
+            if ($request->expectsJson() || $request->is('api/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'احراز هویت ناموفق - لطفا ابتدا وارد شوید.',
+                    'timestamp' => now()->toISOString()
+                ], 401);
+            }
+        });
+
         // Handle JWT exceptions
         $exceptions->render(function (TokenExpiredException $e, Request $request) {
-            if ($request->expectsJson()) {
+            if ($request->expectsJson() || $request->is('api/*')) {
                 return response()->json([
                     'success' => false,
                     'message' => 'توکن منقضی شده است.',
@@ -46,7 +67,7 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         $exceptions->render(function (TokenInvalidException $e, Request $request) {
-            if ($request->expectsJson()) {
+            if ($request->expectsJson() || $request->is('api/*')) {
                 return response()->json([
                     'success' => false,
                     'message' => 'توکن نامعتبر است.',
@@ -56,7 +77,7 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         $exceptions->render(function (JWTException $e, Request $request) {
-            if ($request->expectsJson()) {
+            if ($request->expectsJson() || $request->is('api/*')) {
                 return response()->json([
                     'success' => false,
                     'message' => 'توکن ارائه نشده است.',
@@ -73,6 +94,17 @@ return Application::configure(basePath: dirname(__DIR__))
                     'message' => 'آدرس مورد نظر یافت نشد.',
                     'timestamp' => now()->toISOString()
                 ], 404);
+            }
+        });
+
+        // Handle general exceptions for API routes
+        $exceptions->render(function (\Throwable $e, Request $request) {
+            if ($request->is('api/*') && config('app.debug') === false) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'خطای داخلی سرور.',
+                    'timestamp' => now()->toISOString()
+                ], 500);
             }
         });
     })->create();
