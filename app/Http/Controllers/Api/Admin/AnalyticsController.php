@@ -34,10 +34,11 @@ class AnalyticsController extends Controller
                 'recent_activity' => $this->getRecentActivity(),
             ];
 
-            return $this->successResponse($stats);
+            return $this->successResponse($stats, 'آمار داشبورد با موفقیت دریافت شد.');
         } catch (\Exception $e) {
             Log::error('Analytics dashboard error: ' . $e->getMessage(), [
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
+                'user_id' => auth()->id()
             ]);
 
             return $this->errorResponse('خطا در دریافت آمار', null, 500);
