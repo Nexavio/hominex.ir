@@ -70,7 +70,7 @@ Route::prefix('v1')->group(function () {
 // =====================================================
 // 🔐 Protected API Routes (Authentication Required)
 // =====================================================
-Route::prefix('v1')->middleware(['auth:api'])->group(function () {
+Route::prefix('v1')->middleware(['api.auth'])->group(function () {
 
     // =====================================================
     // 👤 User Routes
