@@ -7,6 +7,7 @@ use App\Traits\ApiResponse;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Illuminate\Support\Facades\Log;
 
 class CheckRole
 {
@@ -14,52 +15,55 @@ class CheckRole
 
     public function handle(Request $request, Closure $next, string $role): Response
     {
-        // بررسی اینکه کاربر لاگین کرده باشد
-        if (!auth()->check()) {
-            return $this->unauthorizedResponse('شما باید وارد شوید.');
-        }
-
-        $user = auth()->user();
-
-        // بررسی اینکه کاربر وجود دارد
-        if (!$user) {
-            return $this->unauthorizedResponse('کاربر یافت نشد.');
-        }
-
-        // تبدیل role string به UserRole enum
         try {
-            $requiredRole = UserRole::from($role);
-        } catch (\ValueError $e) {
+            // فرض می‌کنیم کاربر قبلاً توسط api.auth middleware احراز هویت شده
+            $user = auth('api')->user();
+
+            if (!$user) {
+                return $this->errorResponse(
+                    message: 'کاربر احراز هویت نشده است.',
+                    statusCode: 401
+                );
+            }
+
+            // تبدیل role string به UserRole enum
+            try {
+                $requiredRole = UserRole::from($role);
+            } catch (\ValueError $e) {
+                return $this->errorResponse(
+                    message: 'نقش کاربری نامعتبر است.',
+                    statusCode: 400
+                );
+            }
+
+            // بررسی نقش کاربر
+            if ($user->user_type !== $requiredRole) {
+                return $this->errorResponse(
+                    message: 'شما مجاز به دسترسی به این بخش نیستید.',
+                    statusCode: 403
+                );
+            }
+
+            // بررسی تأیید شماره تماس
+            if (!$user->phone_verified_at) {
+                return $this->errorResponse(
+                    message: 'شماره تماس شما هنوز تأیید نشده است.',
+                    statusCode: 403
+                );
+            }
+
+            return $next($request);
+        } catch (\Exception $e) {
+            Log::error('CheckRole middleware error: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'user_id' => auth('api')->id(),
+                'required_role' => $role
+            ]);
+
             return $this->errorResponse(
-                message: 'نقش کاربری نامعتبر است.',
-                statusCode: 400
+                message: 'خطا در بررسی دسترسی کاربر.',
+                statusCode: 500
             );
         }
-
-        // بررسی نقش کاربر
-        if ($user->user_type !== $requiredRole) {
-            return $this->errorResponse(
-                message: 'شما مجاز به دسترسی به این بخش نیستید.',
-                statusCode: 403
-            );
-        }
-
-        // بررسی فعال بودن حساب کاربری
-        if (!$user->is_active) {
-            return $this->errorResponse(
-                message: 'حساب کاربری شما غیرفعال است.',
-                statusCode: 403
-            );
-        }
-
-        // بررسی تأیید شماره تماس
-        if (!$user->phone_verified_at) {
-            return $this->errorResponse(
-                message: 'شماره تماس شما هنوز تأیید نشده است.',
-                statusCode: 403
-            );
-        }
-
-        return $next($request);
     }
 }
